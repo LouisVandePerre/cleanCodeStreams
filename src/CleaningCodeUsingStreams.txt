@@ -1,0 +1,86 @@
+        HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            calculation.getWageElementCodes().forEach(wageElementCode -> {
+                String materialCode = WageElementCodeMapper.mapToMaterialCode(wageElementCode);
+                if (nonNull(materialCode)) {
+                    accountingOrganizationsByMaterialCode.putIfAbsent(materialCode, accountingOrganization);
+                }
+            });
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+        }
+        return accountingOrganizationsByMaterialCode;
+
+        =>
+
+        HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            Map<String, String> collect = calculation.getWageElementCodes().stream()
+                    .map(WageElementCodeMapper::mapToMaterialCode)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization,
+                            //YAH
+                            (accountingOrganization1, accountingOrganization2) -> accountingOrganization));
+            accountingOrganizationsByMaterialCode.putAll(collect);
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+        }
+        return accountingOrganizationsByMaterialCode;
+
+        =>
+
+        HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            Map<String, String> collect = calculation.getWageElementCodes().stream()
+                    .map(WageElementCodeMapper::mapToMaterialCode)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization));
+            accountingOrganizationsByMaterialCode.putAll(collect);
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+        }
+        return accountingOrganizationsByMaterialCode;
+
+        =>
+
+       if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+            return accountingOrganizationsByMaterialCode;
+        } else {
+            Map<String, String> accountingOrganizationsByMaterialCode = calculation.getWageElementCodes().stream()
+                    .map(WageElementCodeMapper::mapToMaterialCode)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization));
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+            return accountingOrganizationsByMaterialCode;
+        }
+
+        =>
+
+       if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            return Map.of(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            Stream<String> materialCodes = Stream.concat(
+                    Stream.of(BASE_CALCULATION),
+                    calculation.getWageElementCodes().stream().map(WageElementCodeMapper::mapToMaterialCode)
+            );
+
+            return materialCodes
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization));
+        }

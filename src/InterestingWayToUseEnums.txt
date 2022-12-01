@@ -1,0 +1,18 @@
+public enum WageCalculationType {
+    ORIGINAL {
+        @Override
+        public boolean isCorrection() {
+            return false;
+        }
+    },
+    CORRECTION {
+        @Override
+        public boolean isCorrection() {
+            return true;
+        }
+    };
+    public abstract boolean isCorrection();
+}
+
+
+Both enums will now have a function isCorrection() that will return the respective boolean

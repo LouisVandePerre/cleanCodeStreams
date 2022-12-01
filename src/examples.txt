@@ -32,6 +32,8 @@ FUNCTIONAL PROGRAMMING / CLEAN CODE
 
 
 flatmaps
+Returns a stream consisting of the results of replacing each element of this stream with
+the contents of a mapped stream produced by applying the provided mapping function to each element.
 
         Stream<Object> objectStream = workerRecords.getItems().stream().flatMap(workerRecord -> mapToTheoreticalWage(workerRecord, employmentContext));
         List<WebDeclarationTheoreticalWage> webDeclarationTheoreticalWages = objectStream;
@@ -42,17 +44,23 @@ flatmaps
                 .map(workerRecord -> mapToTheoreticalWage(workerRecord, employmentContext))
                 .flatMap(Collection::stream).toList();
 
-
+        return getByCalculationIdentifierWithAccountingOrganizationByRedistribution(calculationsCreationData, CalculationFinProfCreationData::getEmployerFiscalExemptionsByDay)
+                .entrySet()
+                .stream()
+                .collect(toMap(
+                        Entry::getKey,
+                        entry -> entry.getValue().stream().flatMap(Collection::stream).toList()
+                ));
 
 ----------------------------------------------------------------------
 
     public AdminInvoiceLines(List<CalculationCreationData> calculationCreationData, String priceGroup) {
         groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
-                .forEach((identifier, accountingOrganizationsByMaterialCode) -> accountingOrganizationsByMaterialCode.forEach(
-                        (materialCode, accountingOrganization) -> this.add(identifier.getWagePeriodEndDate(), materialCode, priceGroup, accountingOrganization)));
+                .forEach((identifier, accountingOrganizationsByMaterialCode) -> accountingOrganizationsByMaterialCode
+                .forEach((materialCode, accountingOrganization) -> this.add(identifier.getWagePeriodEndDate(), materialCode, priceGroup, accountingOrganization)));
     }
 
-Different ways to write forEach
+Different ways to write this forEach
 
     = >
 
@@ -78,6 +86,8 @@ Different ways to write forEach
                     this.add(invoiceLineCreationData);
                 });
 
+
+
     =>         groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
                 .entrySet().stream()
                 .flatMap(entry -> entry.getValue().entrySet().stream().map(subEntry ->
@@ -87,97 +97,6 @@ Different ways to write forEach
                                 subEntry.getValue(),
                                 priceGroup)))
                 .forEach(this::add);
-
-
-
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-        HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
-        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
-            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
-        } else {
-            calculation.getWageElementCodes().forEach(wageElementCode -> {
-                String materialCode = WageElementCodeMapper.mapToMaterialCode(wageElementCode);
-                if (nonNull(materialCode)) {
-                    accountingOrganizationsByMaterialCode.putIfAbsent(materialCode, accountingOrganization);
-                }
-            });
-            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
-        }
-        return accountingOrganizationsByMaterialCode;
-
-        =>
-
-                HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
-        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
-            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
-        } else {
-            Map<String, String> collect = calculation.getWageElementCodes().stream()
-                    .map(WageElementCodeMapper::mapToMaterialCode)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toMap(
-                            materialCode -> materialCode,
-                            materialCode -> accountingOrganization,
-                            //YAH
-                            (accountingOrganization1, accountingOrganization2) -> accountingOrganization));
-            accountingOrganizationsByMaterialCode.putAll(collect);
-            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
-        }
-        return accountingOrganizationsByMaterialCode;
-
-        =>
-
-                HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
-        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
-            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
-        } else {
-            Map<String, String> collect = calculation.getWageElementCodes().stream()
-                    .map(WageElementCodeMapper::mapToMaterialCode)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .collect(Collectors.toMap(
-                            materialCode -> materialCode,
-                            materialCode -> accountingOrganization));
-            accountingOrganizationsByMaterialCode.putAll(collect);
-            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
-        }
-        return accountingOrganizationsByMaterialCode;
-
-        =>
-
-       if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
-            HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
-            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
-            return accountingOrganizationsByMaterialCode;
-        } else {
-            Map<String, String> accountingOrganizationsByMaterialCode = calculation.getWageElementCodes().stream()
-                    .map(WageElementCodeMapper::mapToMaterialCode)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .collect(Collectors.toMap(
-                            materialCode -> materialCode,
-                            materialCode -> accountingOrganization));
-            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
-            return accountingOrganizationsByMaterialCode;
-        }
-
-        =>
-
-   if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
-            return Map.of(CORRECTION_MATERIAL_CODE, accountingOrganization);
-        } else {
-            Stream<String> materialCodes = Stream.concat(
-                    Stream.of(BASE_CALCULATION),
-                    calculation.getWageElementCodes().stream().map(WageElementCodeMapper::mapToMaterialCode)
-            );
-
-            return materialCodes
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .collect(Collectors.toMap(
-                            materialCode -> materialCode,
-                            materialCode -> accountingOrganization));
-        }
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -220,41 +139,57 @@ Different ways to write forEach
                                         calculation.getWagePeriodEndDate())),
                         (accountingOrganisation1, accountingOrganisation2) -> accountingOrganisation2));
 
--------------------------------------------------------------------------------------------------------------
-
-
-public enum WageCalculationType {
-    ORIGINAL {
-        @Override
-        public boolean isCorrection() {
-            return false;
-        }
-    },
-    CORRECTION {
-        @Override
-        public boolean isCorrection() {
-            return true;
-        }
-    };
-    public abstract boolean isCorrection();
-}
-
 ----------------------------------------------------------------------
-Flatmap
 
-        return getByCalculationIdentifierWithAccountingOrganizationByRedistribution(calculationsCreationData, CalculationFinProfCreationData::getEmployerFiscalExemptionsByDay)
-                .entrySet()
-                .stream()
-                .collect(toMap(
-                        Entry::getKey,
-                        entry -> entry.getValue().stream().flatMap(Collection::stream).toList()
-                ));
+instead of using if x == null use Optionals
+
+var remainingNet = calculationsWithWageElements.stream()
+                .filter(calculationTO -> calculationTO.getRemainingNet().isPresent())
+                .map(calculationWithWageElement -> mapToCalculationCreationData(calculationWithWageElement, DEFAULT_CODE_FOR_REMAINING_NET, calculationWithWageElement.getRemainingNet().get()));
 
 ----------------------------------------------------------------------
 
 Interesting examples van NielsJ
 
-        Collectors
+.collect
+Performs a mutable reduction operation on the elements of this stream using a Collector.
+
+Collectors
+Implementations of Collector that implement various useful reduction operations, such as accumulating elements into collections, summarizing elements according to various criteria, etc.
+
+The following are examples of using the predefined collectors to perform common mutable reduction tasks:
+
+     // Accumulate names into a List
+     List<String> list = people.stream().map(Person::getName).collect(Collectors.toList());
+
+     // Accumulate names into a TreeSet
+     Set<String> set = people.stream().map(Person::getName).collect(Collectors.toCollection(TreeSet::new));
+
+     // Convert elements to strings and concatenate them, separated by commas
+     String joined = things.stream()
+                           .map(Object::toString)
+                           .collect(Collectors.joining(", "));
+
+     // Compute sum of salaries of employee
+     int total = employees.stream()
+                          .collect(Collectors.summingInt(Employee::getSalary)));
+
+     // Group employees by department
+     Map<Department, List<Employee>> byDept
+         = employees.stream()
+                    .collect(Collectors.groupingBy(Employee::getDepartment));
+
+     // Compute sum of salaries by department
+     Map<Department, Integer> totalByDept
+         = employees.stream()
+                    .collect(Collectors.groupingBy(Employee::getDepartment,
+                                                   Collectors.summingInt(Employee::getSalary)));
+
+     // Partition students into passing and failing
+     Map<Boolean, List<Student>> passingFailing =
+         students.stream()
+                 .collect(Collectors.partitioningBy(s -> s.getGrade() >= PASS_THRESHOLD));
+
         Map<String, List<String>> categorized = items.stream()
                 .collect(Collectors.groupingBy(Item::getCategory,
                         Collectors.mapping(
@@ -287,7 +222,15 @@ Interesting examples van NielsJ
                 assertThat(didTheyAllSurviveNow).isFalse();
 
 
-        Comparator
+Comparator
+A comparison function, which imposes a total ordering on some collection of objects.
+Comparators can be passed to a sort method (such as Collections.sort or Arrays.sort)
+to allow precise control over the sort order. Comparators can also be used to control the order of certain data structures
+(such as sorted sets or sorted maps), or to provide an ordering for collections of objects that don't have a natural ordering.
+
+!!
+The ordering imposed by a comparator c on a set of elements S is said to be consistent with equals
+if and only if c.compare(e1, e2)==0 has the same boolean value as e1.equals(e2) for every e1 and e2 in S.
 
                 Map<String, String> stonesLocations = Map.of(
                         "Space Stone", "Tessaract",
