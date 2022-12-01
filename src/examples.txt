@@ -1,7 +1,7 @@
 FUNCTIONAL PROGRAMMING / CLEAN CODE
 //    List 1
 //    List 2
-//            for each occupation -> {
+//    for each occupation -> {
 //        if has adjacent (period wise) mergable element (aka no full time credit)
 //        add to list one
 //     else add to list 2
@@ -11,11 +11,14 @@ FUNCTIONAL PROGRAMMING / CLEAN CODE
 
       return Stream.of(occupationInWageCalculation, occupationInWageCalculation2)
             .flatMap(Collection::stream)
-                .filter(occupation -> occupation.getReorganisationMeasure().map(reorganisaionMeasure -> reorganisaionMeasure.equals(FULL_TIME_TIME_CREDIT_OR_THEMATIC_LEAVE))
+            .filter(occupation -> occupation.getReorganisationMeasure().map(reorganisaionMeasure -> reorganisaionMeasure.equals(FULL_TIME_TIME_CREDIT_OR_THEMATIC_LEAVE))
             .orElse(false))
             .map(occupation -> new TimeCredit(occupation.getPeriod(), new WorkSchedule(7)))
             .toList();
 
+----------------------------------------------------------------------
+
+The flatMap() operation has the effect of applying a one-to-many transformation to the elements of the stream, and then flattening the resulting elements into a new stream.
 
 
     private WebDeclarationPartTimeCalculBase mapToWebDeclarationPartTimeCalculBase(Occupation occupation) {
@@ -60,10 +63,9 @@ the contents of a mapped stream produced by applying the provided mapping functi
                 .forEach((materialCode, accountingOrganization) -> this.add(identifier.getWagePeriodEndDate(), materialCode, priceGroup, accountingOrganization)));
     }
 
-Different ways to write this forEach
+--- lets fix these forEaches w streams into readable code (if you know how a flatmap works :-) )
 
     = >
-
 
             groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
                 .entrySet().stream()
@@ -126,7 +128,7 @@ Different ways to write this forEach
                                         calculation.getWagePeriodEndDate()))
                 ));
 
-        =>         fix
+        => fix
 
         return calculationCreationData
                 .stream()
@@ -138,6 +140,15 @@ Different ways to write this forEach
                                         calculation.getAccountingOrganizationCreationData(),
                                         calculation.getWagePeriodEndDate())),
                         (accountingOrganisation1, accountingOrganisation2) -> accountingOrganisation2));
+
+        Why is this the fix? ==
+
+        Let's introduce a merge function that indicates that, in the case of a collision, we keep the existing entry:
+
+        public Map<Integer, Book> listToMapWithDupKey(List<Book> books) {
+            return books.stream().collect(Collectors.toMap(Book::getReleaseYear, Function.identity(),
+              (existing, replacement) -> existing));
+        }
 
 ----------------------------------------------------------------------
 
