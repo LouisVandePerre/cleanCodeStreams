@@ -1,0 +1,316 @@
+FUNCTIONAL PROGRAMMING / CLEAN CODE
+//    List 1
+//    List 2
+//            for each occupation -> {
+//        if has adjacent (period wise) mergable element (aka no full time credit)
+//        add to list one
+//     else add to list 2
+//    }
+//    call create for list 1
+//    call create for each of list 2 (edit
+
+      return Stream.of(occupationInWageCalculation, occupationInWageCalculation2)
+            .flatMap(Collection::stream)
+                .filter(occupation -> occupation.getReorganisationMeasure().map(reorganisaionMeasure -> reorganisaionMeasure.equals(FULL_TIME_TIME_CREDIT_OR_THEMATIC_LEAVE))
+            .orElse(false))
+            .map(occupation -> new TimeCredit(occupation.getPeriod(), new WorkSchedule(7)))
+            .toList();
+
+
+
+    private WebDeclarationPartTimeCalculBase mapToWebDeclarationPartTimeCalculBase(Occupation occupation) {
+        return occupation.getCalculationBaseAllowance()
+                .map(CalculationBaseAllowance::getPartTimeCalculBase)
+                .flatMap()
+                .map(partTimeCalculBase -> new WebDeclarationPartTimeCalculBase(partTimeCalculBase.getRemunerationTimeUnit().toString(), partTimeCalculBase.getPartTimeGrossSalary(), partTimeCalculBase.getJustification().toString()))
+                .orElse(null);
+    }
+
+----------------------------------------------------------------------
+
+    =>
+
+
+flatmaps
+
+        Stream<Object> objectStream = workerRecords.getItems().stream().flatMap(workerRecord -> mapToTheoreticalWage(workerRecord, employmentContext));
+        List<WebDeclarationTheoreticalWage> webDeclarationTheoreticalWages = objectStream;
+
+        =>
+                List<WebDeclarationTheoreticalWage> webDeclarationTheoreticalWages = workerRecords.getItems()
+                .stream()
+                .map(workerRecord -> mapToTheoreticalWage(workerRecord, employmentContext))
+                .flatMap(Collection::stream).toList();
+
+
+
+----------------------------------------------------------------------
+
+    public AdminInvoiceLines(List<CalculationCreationData> calculationCreationData, String priceGroup) {
+        groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
+                .forEach((identifier, accountingOrganizationsByMaterialCode) -> accountingOrganizationsByMaterialCode.forEach(
+                        (materialCode, accountingOrganization) -> this.add(identifier.getWagePeriodEndDate(), materialCode, priceGroup, accountingOrganization)));
+    }
+
+Different ways to write forEach
+
+    = >
+
+
+            groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
+                .entrySet().stream()
+
+                .flatMap(entry -> entry.getValue().entrySet().stream().map(subEntry -> Map.entry(entry.getKey(), subEntry)))
+                .forEach(entry -> {
+                    var wagePeriodEndDate = entry.getKey().getWagePeriodEndDate();
+                    var materialCode = entry.getValue().getKey();
+                    var accountingOrganization = entry.getValue().getValue();
+                    this.add(wagePeriodEndDate, materialCode, priceGroup, accountingOrganization);
+                });
+
+
+
+    =>         groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
+                .entrySet().stream()
+                .flatMap(entry -> entry.getValue().entrySet().stream().map(subEntry ->
+                        new InvoiceLineCreationData(entry.getKey().getWagePeriodEndDate(), subEntry.getKey(), subEntry.getValue(), priceGroup)))
+                .forEach(invoiceLineCreationData -> {
+                    this.add(invoiceLineCreationData);
+                });
+
+    =>         groupAccountingOrganizationsByMaterialCodesByIdentifiers(calculationCreationData)
+                .entrySet().stream()
+                .flatMap(entry -> entry.getValue().entrySet().stream().map(subEntry ->
+                        new InvoiceLineCreationData(
+                                entry.getKey().getWagePeriodEndDate(),
+                                subEntry.getKey(),
+                                subEntry.getValue(),
+                                priceGroup)))
+                .forEach(this::add);
+
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+        HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            calculation.getWageElementCodes().forEach(wageElementCode -> {
+                String materialCode = WageElementCodeMapper.mapToMaterialCode(wageElementCode);
+                if (nonNull(materialCode)) {
+                    accountingOrganizationsByMaterialCode.putIfAbsent(materialCode, accountingOrganization);
+                }
+            });
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+        }
+        return accountingOrganizationsByMaterialCode;
+
+        =>
+
+                HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            Map<String, String> collect = calculation.getWageElementCodes().stream()
+                    .map(WageElementCodeMapper::mapToMaterialCode)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization,
+                            //YAH
+                            (accountingOrganization1, accountingOrganization2) -> accountingOrganization));
+            accountingOrganizationsByMaterialCode.putAll(collect);
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+        }
+        return accountingOrganizationsByMaterialCode;
+
+        =>
+
+                HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+        if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            Map<String, String> collect = calculation.getWageElementCodes().stream()
+                    .map(WageElementCodeMapper::mapToMaterialCode)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization));
+            accountingOrganizationsByMaterialCode.putAll(collect);
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+        }
+        return accountingOrganizationsByMaterialCode;
+
+        =>
+
+       if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            HashMap<String, String> accountingOrganizationsByMaterialCode = new HashMap<>();
+            accountingOrganizationsByMaterialCode.put(CORRECTION_MATERIAL_CODE, accountingOrganization);
+            return accountingOrganizationsByMaterialCode;
+        } else {
+            Map<String, String> accountingOrganizationsByMaterialCode = calculation.getWageElementCodes().stream()
+                    .map(WageElementCodeMapper::mapToMaterialCode)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization));
+            accountingOrganizationsByMaterialCode.putIfAbsent(BASE_CALCULATION, accountingOrganization);
+            return accountingOrganizationsByMaterialCode;
+        }
+
+        =>
+
+   if (calculation.getWageCalculationType().equals(WageCalculationType.CORRECTION)) {
+            return Map.of(CORRECTION_MATERIAL_CODE, accountingOrganization);
+        } else {
+            Stream<String> materialCodes = Stream.concat(
+                    Stream.of(BASE_CALCULATION),
+                    calculation.getWageElementCodes().stream().map(WageElementCodeMapper::mapToMaterialCode)
+            );
+
+            return materialCodes
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toMap(
+                            materialCode -> materialCode,
+                            materialCode -> accountingOrganization));
+        }
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+        Map<Identifier, Map<String, String>> accountingOrganizationsByMaterialCodesByIdentifiers = new HashMap<>();
+
+        calculationCreationData.forEach(calculation -> {
+            Identifier identifier = new Identifier(calculation.getAgreementEssReference(), calculation.getWagePeriodEndDate());
+
+            String accountingOrganization = getAccountingOrganizationForWagePeriodEndDate(calculation.getAccountingOrganizationCreationData(), calculation.getWagePeriodEndDate());
+            accountingOrganizationsByMaterialCodesByIdentifiers.put(
+                    identifier,
+                    getAccountingOrganizationsByMaterialCodeForCalculation(calculation, accountingOrganization));
+        });
+
+        return accountingOrganizationsByMaterialCodesByIdentifiers;
+
+        => doesnt work
+
+                return calculationCreationData
+                .stream()
+                .collect(Collectors.toMap(
+                        calculation -> new Identifier(calculation.getAgreementEssReference(), calculation.getWagePeriodEndDate()),
+                        calculation -> getAccountingOrganizationsByMaterialCodeForCalculation(
+                                calculation,
+                                getAccountingOrganizationForWagePeriodEndDate(
+                                        calculation.getAccountingOrganizationCreationData(),
+                                        calculation.getWagePeriodEndDate()))
+                ));
+
+        =>         fix
+
+        return calculationCreationData
+                .stream()
+                .collect(Collectors.toMap(
+                        calculation -> new Identifier(calculation.getAgreementEssReference(), calculation.getWagePeriodEndDate()),
+                        calculation -> getAccountingOrganizationsByMaterialCodeForCalculation(
+                                calculation,
+                                getAccountingOrganizationForWagePeriodEndDate(
+                                        calculation.getAccountingOrganizationCreationData(),
+                                        calculation.getWagePeriodEndDate())),
+                        (accountingOrganisation1, accountingOrganisation2) -> accountingOrganisation2));
+
+-------------------------------------------------------------------------------------------------------------
+
+
+public enum WageCalculationType {
+    ORIGINAL {
+        @Override
+        public boolean isCorrection() {
+            return false;
+        }
+    },
+    CORRECTION {
+        @Override
+        public boolean isCorrection() {
+            return true;
+        }
+    };
+    public abstract boolean isCorrection();
+}
+
+----------------------------------------------------------------------
+Flatmap
+
+        return getByCalculationIdentifierWithAccountingOrganizationByRedistribution(calculationsCreationData, CalculationFinProfCreationData::getEmployerFiscalExemptionsByDay)
+                .entrySet()
+                .stream()
+                .collect(toMap(
+                        Entry::getKey,
+                        entry -> entry.getValue().stream().flatMap(Collection::stream).toList()
+                ));
+
+----------------------------------------------------------------------
+
+Interesting examples van NielsJ
+
+        Collectors
+        Map<String, List<String>> categorized = items.stream()
+                .collect(Collectors.groupingBy(Item::getCategory,
+                        Collectors.mapping(
+                                Item::getName, Collectors.toList())
+                ));
+
+
+
+        AllMatch
+
+                 List<PersonCondition> lokiVariants = List.of(
+                        new PersonCondition("Endgame Loki", true),
+                        new PersonCondition("Lokigator", true),
+                        new PersonCondition("Kid Loki", true)
+                );
+
+                boolean didTheyAllSurvive = lokiVariants.stream().allMatch(PersonCondition::isCondition);
+
+                assertThat(didTheyAllSurvive).isTrue();
+
+                List<PersonCondition> lokiVariants2 = List.of(
+                        new PersonCondition("Endgame Loki", true),
+                        new PersonCondition("Lokigator", true),
+                        new PersonCondition("Kid Loki", true),
+                        new PersonCondition("President Loki", false)
+                );
+
+                Boolean didTheyAllSurviveNow = lokiVariants2.stream().allMatch(PersonCondition::isCondition);
+
+                assertThat(didTheyAllSurviveNow).isFalse();
+
+
+        Comparator
+
+                Map<String, String> stonesLocations = Map.of(
+                        "Space Stone", "Tessaract",
+                        "Mind Stone", "Loki's Sceptre",
+                        "Reality Stone", "The Aether",
+                        "Power Stone", "Morag",
+                        "Time Stone", "Eye of Agamotto",
+                        "Soul Stone", "Vormir"
+                );
+
+                List<String> actual = stonesLocations.keySet()
+                        .stream()
+                        .sorted(Comparator.reverseOrder())
+                        .collect(Collectors.toList());
+
+                //results should be sorted alphabetically descending
+                assertThat(actual).containsExactly(
+                        "Time Stone",
+                        "Space Stone",
+                        "Soul Stone",
+                        "Reality Stone",
+                        "Power Stone",
+                        "Mind Stone"
+                );
+
+

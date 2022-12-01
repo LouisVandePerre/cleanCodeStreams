@@ -1,0 +1,65 @@
+@Named
+public class CreatePartTimeUnemploymentRemunerationDeclarationEventHandler {
+
+
+    private void persistRemunerationDeclaration(Employment employment,
+                                                InvoluntaryPartTimes involuntaryPartTimes,
+                                                WageCalculation wageCalculation,
+                                                EmployeeWages employeeWages) {
+        EmployeeWorkerRecords employeeWorkerRecords = employeeWorkerRecordsFactory.createEmployeeWorkerRecordsUsingFinalizedAndProvisionalWorkedRecords(
+                employment.getAgreementIds(),
+                wageCalculation.getWagePeriod().getClosedEndDate().plusDays(1)
+        );
+
+//        PRE REFACTORING -> Works but not readable/clean => extract to methods then extract to separate factory class to split te responsibility up
+//
+//        /**
+//         * 1/1 - 10/1 Part time time credit (4)
+//         * 11/1 - 20/1 Full time time credit (3)
+//         * 21/1 - 31/1 Part time time credit (4)
+//         * --> 3 WECH006
+//         */
+        private List<ClosedPeriod> determineReferencePeriodsOfWech006DeclarationsToCreate(EmployeeWorkerRecords employeeWorkerRecords, WageCalculation wageCalculation) {
+            var occupationsForWagePeriod = employeeWorkerRecords
+                    .findWithOverlappingOccupation(wageCalculation.getWagePeriod())
+                    .getOccupationOverlappingWith(wageCalculation.getWagePeriod())
+                    .stream()
+                    .sorted(Comparator.comparing(OccupationHistoryItem::getOccupationPeriod))
+                    .toList()
+                    .iterator();
+
+            var periods = new LinkedList<ClosedPeriod>();
+            OccupationHistoryItem previousWorkerRecord = null;
+            while (occupationsForWagePeriod.hasNext()) {
+                var nextOccupation = occupationsForWagePeriod.next();
+                var previousReorg = previousWorkerRecord != null ? previousWorkerRecord.getReorganisationMeasure().orElse(null) : null;
+                var nextReorg = nextOccupation.getReorganisationMeasure().orElse(null);
+                if (previousReorg != null && (FULL_TIME_TIME_CREDIT_OR_THEMATIC_LEAVE.equals(previousReorg) ^ FULL_TIME_TIME_CREDIT_OR_THEMATIC_LEAVE.equals(nextReorg))) {
+                    periods.add(nextOccupation.getOccupationPeriod());
+                } else {
+                    ClosedPeriod previousPeriod = periods.pollLast();
+                    periods.add(ClosedPeriod.periodOf(previousPeriod == null ? nextOccupation.getStartDate() : previousPeriod.getClosedStartDate(), nextOccupation.getEndDate()));
+
+                }
+                previousWorkerRecord = nextOccupation;
+            }
+
+            return periods;
+        }
+
+        determineReferencePeriodsOfWech006DeclarationsToCreate(employeeWorkerRecords, wageCalculation.getWagePeriod())
+                .forEach(referencePeriod ->
+                        PartTimeUnemploymentRemunerationDeclaration.create(
+                                employment,
+                                wageCalculation,
+                                involuntaryPartTimes,
+                                employeeWages,
+                                asrConfigurationRepository,
+                                riskIdRepository,
+                                employeeWorkerRecords,
+                                referencePeriod,
+                                this::validatePayload
+                        ).ifPresent(declarationRepository::save));
+    }
+
+}
