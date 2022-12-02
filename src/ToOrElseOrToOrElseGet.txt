@@ -1,0 +1,18 @@
+import java.util.Optional;
+public class OptionalTest {
+	public static void main(String[] args) {
+		String fullName = Optional.ofNullable(firstName())
+			.map(OptionalTest::addLastName)
+			.orElse(throwExc()); // use orElseGet instead!
+		System.out.println(fullName);
+	}
+	private static String firstName() {
+		return "Stijn";
+	}
+	private static String addLastName(String firstName) {
+		return firstName + " Van Bever";
+	}
+	private static String throwExc() {
+		throw new IllegalArgumentException("HAHA");
+	}
+}
